@@ -59,12 +59,16 @@ def read_data(dataset_name):
 
     target.close()
 
-
 def getWordVecs(words, model):
     vecs = []
+    # 判断模型类型，选择正确的访问方式
+    if hasattr(model, 'wv'):  # 如果是 Word2Vec 对象
+        word_vectors = model.wv
+    else:  # 如果是 KeyedVectors 对象
+        word_vectors = model
     for word in words:
-        if word in model:  # 检查词是否存在
-            vecs.append(model[word])  # 直接访问 model[word]
+        if word in word_vectors:
+            vecs.append(word_vectors[word])
     return vecs
 
 
@@ -131,8 +135,8 @@ def word2vec_(dataset_name):
     model_ = Word2Vec(
         sentences,
         vector_size=300,  # 词向量维度
-        window=8,  # 上下文窗口
-        min_count=1,  # 过滤低频词
+        window=10,  # 上下文窗口
+        min_count=2,  # 过滤低频词
         sg=1,  # 使用Skip-Gram
         hs=1,  # 层次Softmax加速训练
         workers=multiprocessing.cpu_count()
@@ -307,11 +311,12 @@ def predict_(a, dataset_name):
     # 加载词向量模型
     inp = f"./data/{dataset_name}.seg.text.vector"
     model = KeyedVectors.load_word2vec_format(inp, binary=False)
+    # print(f"模型类型: {type(model)}")
 
     # 分词
     wds = Seg()
     seg_list = wds.cut(a, cut_all=False)
-    print(f"分词结果: {seg_list}")  # 调试输出
+    # print(f"分词结果: {seg_list}")  # 调试输出
     line_seg = seg_list  # 直接使用列表，避免重复 split/join
 
     # 获取词向量
@@ -324,7 +329,7 @@ def predict_(a, dataset_name):
 
     # 加载分类模型（动态路径）
     model_path = f"./model/best_model_{dataset_name}.m"
-    print(f"Loading model from: {model_path}")  # 调试输出路径
+    # print(f"Loading model from: {model_path}")  # 调试输出路径
     try:
         clf = joblib.load(model_path)
     except FileNotFoundError:
@@ -447,8 +452,8 @@ if __name__ == '__main__':
     # 从终端输入数据集名称（不带扩展名）
     dataset_name = input("请输入数据集名称（不带扩展名）：").strip()
 
-    # read_data(dataset_name)
-    # word2vec_(dataset_name)
-    # classification3_(dataset_name)
+    read_data(dataset_name)
+    word2vec_(dataset_name)
+    classification3_(dataset_name)
     sg.theme()
     main_WINDOW(dataset_name)
