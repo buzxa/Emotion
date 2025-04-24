@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
+
+import os
 import pandas as pd # pandas、csv、numpy是读取文件或处理数组等工具包
 import csv
 import numpy as np
@@ -250,50 +252,52 @@ def classification_():
 
     X_train, X_test, y_train, y_test = train_test_split(x_scaled, y, test_size=0.3, random_state=42)
 
-    # 定义参数网格（精简版）
-    param_grid = [
-        {
-            'kernel': ['rbf'],
-            'C': [10, 100],
-            'gamma': [0.1, 'scale'],
-            'class_weight': ['balanced']
-        },
-        {
-            'kernel': ['poly'],
-            'C': [10, 100],
-            'gamma': ['scale'],
-            'degree': [2],
-            'coef0': [0],
-            'class_weight': ['balanced']
-        }
-    ]
+    # 检查模型是否存在
+    model_path = "./model/best_model.m"
+    if os.path.exists(model_path):
+        # 直接加载已有模型
+        print("检测到已保存的最佳模型，直接加载...")
+        best_clf = joblib.load(model_path)
+    else:
+        # 定义参数网格
+        param_grid = [
+            {
+                'kernel': ['rbf'],
+                'C': [10, 100, 300],
+                'gamma': [0.1, 0.01, 'scale', 'auto'],
+                'class_weight': ['balanced']
+            },
+            {
+                'kernel': ['poly'],
+                'C': [10, 100, 300],
+                'gamma': [0.1, 0.01, 'scale'],
+                'degree': [2, 3],
+                'coef0': [0, 1.0],
+                'class_weight': ['balanced']
+            }
+        ]
 
-    # 创建网格搜索对象（单线程）
-    from sklearn.model_selection import GridSearchCV
-    grid_search = GridSearchCV(
-        estimator=svm.SVC(),
-        param_grid=param_grid,
-        scoring='accuracy',
-        cv=5,
-        n_jobs=1,  # 关键修改：禁用多进程
-        verbose=2
-    )
+        # 执行网格搜索（仅在第一次运行或模型未保存时）
+        from sklearn.model_selection import GridSearchCV
+        grid_search = GridSearchCV(
+            estimator=svm.SVC(),
+            param_grid=param_grid,
+            scoring='accuracy',
+            cv=5,
+            n_jobs=1,  # Windows 下建议单线程
+            verbose=2
+        )
 
-    # 执行网格搜索
-    print("开始网格搜索...")
-    with parallel_backend('threading'): # 强制使用线程并行
+        print("开始网格搜索...")
         grid_search.fit(X_train, y_train)
 
-    # 输出最佳参数
-    print("\n最佳参数组合:", grid_search.best_params_)
-    print("最佳验证准确率:", grid_search.best_score_)
+        # 保存最佳模型
+        best_clf = grid_search.best_estimator_
+        joblib.dump(best_clf, model_path)
+        print(f"模型已保存至 {model_path}")
 
-    # 评估最佳模型
-    best_clf = grid_search.best_estimator_
+    # 评估模型（无论新旧）
     y_pred = best_clf.predict(X_test)
-
-    # 保存模型
-    joblib.dump(best_clf, "./model/best_model.m")
 
     # 混淆矩阵
     print('\n混淆矩阵:')
