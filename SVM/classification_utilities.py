@@ -1,57 +1,73 @@
 import numpy as np
 
-
-# 显示带有标签的混淆矩阵
-
 def display_cm(cm, labels, hide_zeros=False, display_metrics=False):
+    num_classes = len(labels)
 
-    precision = np.diagonal(cm) / cm.sum(axis=0).astype('float')
-    recall = np.diagonal(cm) / cm.sum(axis=1).astype('float')
-    F1 = 2 * (precision * recall) / (precision + recall)
+    # 检查混淆矩阵的维度是否与标签数量一致
+    if cm.shape != (num_classes, num_classes):
+        raise ValueError(f"混淆矩阵应为 {num_classes}x{num_classes}，但实际形状是 {cm.shape}")
 
-    precision[np.isnan(precision)] = 0
-    recall[np.isnan(recall)] = 0
-    F1[np.isnan(F1)] = 0
+    # 计算指标
+    precision = np.zeros(num_classes)
+    recall = np.zeros(num_classes)
+    F1 = np.zeros(num_classes)
 
-    total_precision = np.sum(precision * cm.sum(axis=1)) / cm.sum(axis=(0, 1))
+    for i in range(num_classes):
+        # 计算 Recall（行指标）
+        row_sum = cm.sum(axis=1)[i]
+        recall[i] = cm[i, i] / row_sum if row_sum != 0 else 0
 
-    total_recall = np.sum(recall * cm.sum(axis=1)) / cm.sum(axis=(0, 1))
-    total_F1 = np.sum(F1 * cm.sum(axis=1)) / cm.sum(axis=(0, 1))
+        # 计算 Precision（列指标）
+        col_sum = cm.sum(axis=0)[i]
+        precision[i] = cm[i, i] / col_sum if col_sum != 0 else 0
 
+        # 计算 F1
+        if precision[i] + recall[i] != 0:
+            F1[i] = 2 * (precision[i] * recall[i]) / (precision[i] + recall[i])
 
-    columnwidth = max([len(x) for x in labels] + [5])  # 5 is value length
+    # 计算总指标（加权平均）
+    total_samples = cm.sum()
+    total_precision = (precision * cm.sum(axis=1)).sum() / total_samples
+    total_recall = (recall * cm.sum(axis=1)).sum() / total_samples
+    total_F1 = (F1 * cm.sum(axis=1)).sum() / total_samples
+
+    # 格式化输出
+    columnwidth = max([len(x) for x in labels] + [5])  # 列宽
     empty_cell = " " * columnwidth
 
-    print("    " + " Pred", end=' ')
+    # 打印混淆矩阵头部
+    print("    Pred", end=' ')
     for label in labels:
-        print("%{0}s".format(columnwidth) % label, end=' ')
-    print("%{0}s".format(columnwidth) % 'Total')
-    print("    " + " True")
+        print(f"%{columnwidth}s" % label, end=' ')
+    print(f"%{columnwidth}s" % 'Total')
+    print("    True")
 
+    # 打印每一行
     for i, label1 in enumerate(labels):
-        print("    %{0}s".format(columnwidth) % label1, end=' ')
-        for j in range(len(labels)):
-            cell = "%{0}d".format(columnwidth) % cm[i, j]
-            if hide_zeros:
-                cell = cell if float(cm[i, j]) != 0 else empty_cell
+        print(f"%{columnwidth}s" % label1, end=' ')
+        for j in range(num_classes):
+            cell = f"%{columnwidth}d" % cm[i, j]
+            if hide_zeros and cm[i, j] == 0:
+                cell = empty_cell
             print(cell, end=' ')
-        print("%{0}d".format(columnwidth) % sum(cm[i, :]))
+        print(f"%{columnwidth}d" % sum(cm[i, :]))
 
+    # 打印指标（可选）
     if display_metrics:
-        print()
-        print("Precision", end=' ')
-        for j in range(len(labels)):
-            cell = "%{0}.2f".format(columnwidth) % precision[j]
-            print(cell, end=' ')
-        print("%{0}.2f".format(columnwidth) % total_precision)
-        print("   Recall", end=' ')
-        for j in range(len(labels)):
-            cell = "%{0}.2f".format(columnwidth) % recall[j]
-            print(cell, end=' ')
-        print("%{0}.2f".format(columnwidth) % total_recall)
-        print("       F1", end=' ')
-        for j in range(len(labels)):
-            cell = "%{0}.2f".format(columnwidth) % F1[j]
-            print(cell, end=' ')
-        print("%{0}.2f".format(columnwidth) % total_F1)
+        print("\nMetrics:")
+        print(f"{'Precision':>{columnwidth}}", end=' ')
+        for p in precision:
+            print(f"%{columnwidth}.2f" % p, end=' ')
+        print(f"%{columnwidth}.2f" % total_precision)
+
+        print(f"{'Recall':>{columnwidth}}", end=' ')
+        for r in recall:
+            print(f"%{columnwidth}.2f" % r, end=' ')
+        print(f"%{columnwidth}.2f" % total_recall)
+
+        print(f"{'F1':>{columnwidth}}", end=' ')
+        for f in F1:
+            print(f"%{columnwidth}.2f" % f, end=' ')
+        print(f"%{columnwidth}.2f" % total_F1)
+
 
