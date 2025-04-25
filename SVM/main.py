@@ -455,5 +455,5 @@ if __name__ == '__main__':
     read_data(dataset_name)
     word2vec_(dataset_name)
     classification3_(dataset_name)
-    sg.theme()
-    main_WINDOW(dataset_name)
+    # sg.theme()
+    # main_WINDOW(dataset_name)
