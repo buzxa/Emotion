@@ -5,9 +5,6 @@ import codecs
 class Seg(object):
     stopword_filepath="stopwordList//stopword.txt"
 
-    # 自定义情感词典
-    # jieba.add_word("example", freq=1000)
-
     def __init__(self):
         self.stopwords = set()
         self.read_in_stopword()

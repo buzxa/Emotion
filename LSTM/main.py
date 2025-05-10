@@ -16,7 +16,7 @@ from sklearn.metrics import precision_score, accuracy_score, f1_score, recall_sc
 
 
 # 超参数设置
-data_path =  './data/data.txt'              # 数据集
+data_path = 'data/dataINTERNET.txt'  # 数据集
 vocab_path = './data/vocab.pkl'             # 词表
 save_path = './saved_dict/lstm.ckpt'        # 模型训练结果
 embedding_pretrained = \
@@ -67,7 +67,7 @@ def load_dataset(path, pad_size, tokenizer, vocab):
             if not lin:
                 continue
             # print(lin)
-            label,content = lin.split('	####	')
+            label,content = lin.split(' ')
             # word_line存储每个字的id
             words_line = []
             # 分割器，分词每个字
@@ -286,11 +286,11 @@ def dev_eval(model, data, loss_function,Result_test=False):
     return acc, loss_total / len(data)
 
 if __name__ == '__main__':
-    # 设置随机数种子，保证每次运行结果一致，不至于不能复现模型
+    # 设置随机数种子，保证每次运行结果一致
     np.random.seed(1)
     torch.manual_seed(1)
     torch.cuda.manual_seed_all(1)
-    torch.backends.cudnn.deterministic = True  # 保证每次结果一样
+    torch.backends.cudnn.deterministic = True
 
     start_time = time.time()
     print("Loading data...")
