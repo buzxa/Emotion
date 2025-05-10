@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
-
+import os
 import threading
 from queue import Queue
 import sys
-sys.path.append('D:\Mat\github\Emotion\JD\comment4.py')  # 添加comment4.py所在目录
+sys.path.append('D:\Mat\github\Emotion\JD\comment4.py')     # 添加comment4.py所在目录
+# sys.path.append('D:\Mat\github\Emotion\LSTM')
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", 'LSTM'))
+from LSTM.main import predict_lstm
 from JD.comment4 import get_jd_comments
 
 import os
@@ -13,7 +16,6 @@ import csv
 import numpy as np
 import time
 from Segment_ import Seg                                    # 数据预处理模块，包含分词等功能
-import gensim                                               # 从gensim中导入Word2Vec
 from gensim.models.word2vec import LineSentence
 from gensim.models import Word2Vec, KeyedVectors
 from sklearn import svm                                     # sklearn导入支持向量机
@@ -27,11 +29,9 @@ import codecs
 import warnings                                             # 忽略告警
 from joblib import parallel_backend
 
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.svm import LinearSVC
-from sklearn.metrics import confusion_matrix
 from sklearn.model_selection import GridSearchCV
 warnings.filterwarnings(action='ignore', category=UserWarning, module='gensim')
 
@@ -350,7 +350,7 @@ def classification_quality(dataset_name):
     print(f"测试集准确率: {clf.score(X_test_processed, y_test):.2f}")
 
 
-def predict_(a, dataset_name, model_type):
+def predict_svm(a, dataset_name, model_type):
     """
     参数说明：
     a: 待预测文本 (字符串)
@@ -380,7 +380,7 @@ def predict_(a, dataset_name, model_type):
             if len(seg_list) == 0:
                 return "无法识别：分词结果为空"
             # 终端观察输出结果
-            print(seg_list)
+            print(f"SVM分词:{seg_list}")
         except Exception as e:
             return f"分词失败：{str(e)}"
 
@@ -519,6 +519,7 @@ class CrawlerThread(threading.Thread):
         except Exception as e:
             self.queue.put(("ERROR", str(e)))
 
+
 def read_table_data(file_path):
     try:
         with open(file_path, 'r', newline='', encoding='gbk') as file:
@@ -608,7 +609,7 @@ def make_window(theme):
         sg.Tab(' 数 据 采 集 ', Date_collection),
         sg.Tab(' 文 本 识 别 ', News_detection),
         # sg.Tab('                                                     ', empty),
-        sg.Tab(' 结 果 管 理  ', News_management,element_justification="right",)]], expand_x=True, expand_y=True,font=("Helvetica", 16)),
+        sg.Tab(' 结 果 管 理  ', News_management, element_justification="right",)]], expand_x=True, expand_y=True, font=("Helvetica", 16)),
 
     ]]
     # layout[-1].append(sg.Sizegrip())
@@ -683,38 +684,66 @@ def main_WINDOW(dataset_name):
                 "LSTM": "lstm"
             }
             model_type = model_mapping.get(values["-MODEL_TYPE-"], "balance")
-            # 调用预测函数
-            raw_result = predict_(values['_INPUT_news_'], dataset_name, model_type)
-            # 解析预测结果
-            result_lines = raw_result.split('\n')
-            prediction = result_lines[0].split('预测结果：')[-1].strip() if '预测结果：' in result_lines[
-                0] else raw_result
-            confidence = result_lines[1].split('置信度：')[-1].strip() if len(result_lines) > 1 else "N/A"
-            # 更新UI显示
-            window['_OUTPUT_RESULT_'].update(prediction)
-            window['_OUTPUT_CONFIDENCE_'].update(confidence)
-            # 保存结果到CSV
-            time_str = time.strftime('%Y-%m-%d %H:%M:%S')
-            new_record = [
-                values['_INPUT_news_'],
-                "\t" + prediction,
-                "\t" + model_type,
-                "\t" + confidence,
-                time_str
-            ]
-            # 确保文件存在并写入列头
-            csv_path = '../JD/txtDate/table_data.csv'
-            file_exists = os.path.exists(csv_path)
 
-            with open(csv_path, 'a', newline='', encoding='gbk') as f:
-                writer = csv.writer(f)
-                # 如果文件不存在，写入表头
-                if not file_exists:
-                    writer.writerow(['文本内容', '识别模型', '识别结果', '置信度', '识别时间'])
-                # 使用csv自带的分隔符处理
-                writer.writerow(new_record)
-            # 刷新表格
-            window["-TABLE_de-"].update(values=read_table_data(csv_path)[1:])
+            input_text = values['_INPUT_news_']
+
+            try:
+                if model_type == "lstm":
+                    from LSTM.main import predict_lstm
+
+                    # 验证必要文件存在
+                    lstm_base = os.path.join(os.path.dirname(__file__), "..", "LSTM")
+                    required_files = [
+                        os.path.join(lstm_base, "data", "embedding_Tencent.npz"),
+                        os.path.join(lstm_base, "saved_dict", "lstm.ckpt"),
+                        os.path.join(lstm_base, "data", "vocab.pkl")
+                    ]
+                    missing_files = [f for f in required_files if not os.path.exists(f)]
+                    if missing_files:
+                        sg.popup_error("LSTM模型文件缺失：\n" + "\n".join(missing_files))
+                        continue
+                    # 调用LSTM预测函数
+                    label, confidence = predict_lstm(input_text)
+                    prediction = f"{label}"
+                    confidence = f"{confidence:.2%}"
+                else:
+                    # 原有SVM预测逻辑
+                    raw_result = predict_svm(input_text, dataset_name, model_type)
+                    result_lines = raw_result.split('\n')
+                    prediction = result_lines[0].split('预测结果：')[-1].strip() if '预测结果：' in result_lines[
+                        0] else raw_result
+                    confidence = result_lines[1].split('置信度：')[-1].strip() if len(result_lines) > 1 else "N/A"
+                # 更新UI显示
+                window['_OUTPUT_RESULT_'].update(prediction)
+                window['_OUTPUT_CONFIDENCE_'].update(confidence)
+
+                # 保存结果到CSV
+                time_str = time.strftime('%Y-%m-%d %H:%M:%S')
+                new_record = [
+                    values['_INPUT_news_'],
+                    "\t" + prediction,
+                    "\t" + model_type,
+                    "\t" + confidence,
+                    time_str
+                ]
+                # 确保文件存在并写入列头
+                csv_path = '../JD/txtDate/table_data.csv'
+                file_exists = os.path.exists(csv_path)
+
+                with open(csv_path, 'a', newline='', encoding='gbk') as f:
+                    writer = csv.writer(f)
+                    # 如果文件不存在，写入表头
+                    if not file_exists:
+                        writer.writerow(['文本内容', '识别模型', '识别结果', '置信度', '识别时间'])
+                    # 使用csv自带的分隔符处理
+                    writer.writerow(new_record)
+                # 刷新表格
+                window["-TABLE_de-"].update(values=read_table_data(csv_path)[1:])
+
+            except Exception as e:
+                sg.popup_error(f"预测失败：{str(e)}")
+                window['_OUTPUT_RESULT_'].update("预测失败")
+                window['_OUTPUT_CONFIDENCE_'].update("N/A")
 
         elif event == '清空':
             window['_OUTPUT_RESULT_'].update('')
@@ -773,9 +802,9 @@ if __name__ == '__main__':
     #     "短时间内价格持续变动，不保值，建议大家换平台购买吧"
     # ]
     # for text in text_samples:
-    #     print("平衡模型:", predict_(text, dataset_name, "balance"))
-    #     print("速度模型:", predict_(text, dataset_name, "speed"))
-    #     print("质量模型:", predict_(text, dataset_name, "quality"))
+    #     print("平衡模型:", predict_svm(text, dataset_name, "balance"))
+    #     print("速度模型:", predict_svm(text, dataset_name, "speed"))
+    #     print("质量模型:", predict_svm(text, dataset_name, "quality"))
     #     print("-" * 50)
 
     # 可视化系统

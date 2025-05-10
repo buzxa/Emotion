@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import numpy as np
 import pickle as pkl
 from tqdm import tqdm
@@ -14,17 +15,41 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 import matplotlib.pyplot as plt
 from sklearn.metrics import precision_score, accuracy_score, f1_score, recall_score
 
+# 获取当前文件绝对路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
+# 路径配置（使用绝对路径）
+data_dir = os.path.join(current_dir, 'data')
+save_dir = os.path.join(current_dir, 'saved_dict')
+
+# 确保目录存在
+os.makedirs(data_dir, exist_ok=True)
+os.makedirs(save_dir, exist_ok=True)
+
+# 修改后的路径配置
+data_path = os.path.join(data_dir, 'dataINTERNET.txt')
+vocab_path = os.path.join(data_dir, 'vocab.pkl')
+save_path = os.path.join(save_dir, 'lstm.ckpt')
+embedding_path = os.path.join(data_dir, 'embedding_Tencent.npz')
 # 超参数设置
-data_path = 'data/dataINTERNET.txt'  # 数据集
-vocab_path = './data/vocab.pkl'             # 词表
-save_path = './saved_dict/lstm.ckpt'        # 模型训练结果
-embedding_pretrained = \
-    torch.tensor(
-    np.load(
-        './data/embedding_Tencent.npz')
-    ["embeddings"].astype('float32'))
-                                            # 预训练词向量
+# data_path = 'data/dataINTERNET.txt'         # 数据集
+# vocab_path = './data/vocab.pkl'             # 词表
+# save_path = './saved_dict/lstm.ckpt'        # 模型训练结果
+# embedding_pretrained = \
+#     torch.tensor(
+#     np.load(
+#         './data/embedding_Tencent.npz')
+#     ["embeddings"].astype('float32'))         # 预训练词向量
+# 加载预训练词向量（增加异常处理）
+try:
+    embedding_pretrained = torch.tensor(
+        np.load(embedding_path)["embeddings"].astype('float32')
+    )
+except FileNotFoundError:
+    raise RuntimeError(f"词向量文件不存在，请确认以下路径存在文件：\n{os.path.abspath(embedding_path)}")
+except KeyError:
+    raise RuntimeError(f"词向量文件格式错误，请检查npz文件是否包含'embeddings'键")
+
 embed = embedding_pretrained.size(1)        # 词向量维度
 dropout = 0.5                               # 随机丢弃
 num_classes = 2                             # 类别数
@@ -42,8 +67,8 @@ def get_data():
     tokenizer = lambda x: [y for y in x]  # 字级别
     vocab = pkl.load(open(vocab_path, 'rb'))
     # print('tokenizer',tokenizer)
-    print('vocab',vocab)
-    print(f"Vocab size: {len(vocab)}")
+    # print('vocab',vocab)
+    # print(f"Vocab size: {len(vocab)}")
 
     train,dev,test = load_dataset(data_path, pad_size, tokenizer, vocab)
     return vocab, train, dev, test
@@ -67,7 +92,12 @@ def load_dataset(path, pad_size, tokenizer, vocab):
             if not lin:
                 continue
             # print(lin)
-            label,content = lin.split(' ')
+                # 使用maxsplit参数确保只分割第一个空格
+            try:
+                label, content = lin.split(' ', 1)  # 关键修改点
+            except ValueError:
+                print(f"格式错误行：{lin}")
+                continue
             # word_line存储每个字的id
             words_line = []
             # 分割器，分词每个字
@@ -285,7 +315,77 @@ def dev_eval(model, data, loss_function,Result_test=False):
         pass
     return acc, loss_total / len(data)
 
+def predict_lstm(text):
+    """
+    LSTM模型预测函数
+    :param text: 待预测文本 (字符串)
+    :return: (预测标签, 置信度)
+    """
+    # 初始化配置
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    label_map = {0: "negative", 1: "active"}
+
+    # 加载词表和模型
+    # 加载词表
+    if not os.path.exists(vocab_path):
+        raise FileNotFoundError(f"词表文件 {vocab_path} 不存在")
+
+    with open(vocab_path, 'rb') as f:
+        vocab = pkl.load(f)
+
+    # 加载模型
+    model = Model().to(device)
+    if not os.path.exists(save_path):
+        raise FileNotFoundError(f"模型文件 {save_path} 不存在")
+
+    model.load_state_dict(torch.load(save_path, map_location=device))
+    model.eval()
+
+
+    # 文本预处理
+    # 字符级分词
+    tokenizer = lambda x: [y for y in x]  # 与训练时保持一致
+    tokens = tokenizer(text.strip())
+    print(f"LSTM分词:{tokens}")
+
+    # 转换为ID序列
+    words_line = []
+    for word in tokens:
+        words_line.append(vocab.get(word, vocab.get(UNK)))
+
+    # 填充/截断处理
+    seq_len = len(words_line)
+    if pad_size:
+        if len(words_line) < pad_size:
+            words_line.extend([vocab.get(PAD)] * (pad_size - len(words_line)))
+        else:
+            words_line = words_line[:pad_size]
+            seq_len = pad_size
+
+    # 转换为模型输入格式
+    input_tensor = torch.LongTensor([words_line]).to(device)  # 添加batch维度
+
+    # 执行预测
+    with torch.no_grad():
+        outputs = model(input_tensor)
+        probabilities = torch.softmax(outputs, dim=1)
+        confidence, pred = torch.max(probabilities, 1)
+
+    # 返回标准化结果
+    label_map = {0: "negative", 1: "active"}
+    return label_map.get(pred.item(), "unknown"), confidence.item()
+
+
+# if __name__ == '__main__':
+#     test_text1 = "淡淡的花香，悠悠的书香，还有懒懒的猫儿。我不知道该如何取舍，所以决定在一个有花香并且有书香的地方幸福地生活着"
+#     test_text2 = "昨天上班遇到暴雨,全身都湿透了,我怎么这么倒霉,唉"
+#     test_text3 = "儿童基金会的待遇很高啊，有独立的院落、还有哨兵站岗。这待遇比绝大多数国际组织都要高得多了"
+#     label, confidence = predict_lstm(test_text3)
+#     print(f"预测结果: {label}，置信度: {confidence:.2%}")
+
 if __name__ == '__main__':
+    # print("当前工作目录：", os.getcwd())
+    # print("词向量文件路径：", os.path.abspath(embedding_path))
     # 设置随机数种子，保证每次运行结果一致
     np.random.seed(1)
     torch.manual_seed(1)

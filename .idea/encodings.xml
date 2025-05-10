@@ -4,7 +4,7 @@
     <file url="file://$PROJECT_DIR$/JD/txtDate/table_data.csv" charset="GBK" />
     <file url="file://$PROJECT_DIR$/LSTM/data/dataINTERNET.txt" charset="GBK" />
     <file url="file://$PROJECT_DIR$/SVM/table_data.csv" charset="GBK" />
-    <file url="file://$PROJECT_DIR$/SVM/userDate/manager_date.csv" charset="GBK" />
+    <file url="file://$PROJECT_DIR$/SVM/userDate/account.csv" charset="GBK" />
     <file url="file://$PROJECT_DIR$/SVM/userDate/user_date.csv" charset="GBK" />
     <file url="file://$PROJECT_DIR$/SVM1/table_data.csv" charset="GBK" />
     <file url="file://$PROJECT_DIR$/SVM_gpu/table_data.csv" charset="GBK" />
