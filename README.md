@@ -1,6 +1,6 @@
 MP for multithreading
 
-SVN
+SVM
 
 该分支使用cpu多线程训练
 
