@@ -71,6 +71,7 @@ def read_data(dataset_name):
 
     target.close()
 
+
 def getWordVecs(words, model):
     vecs = []
     # 判断模型类型，选择正确的访问方式
@@ -82,6 +83,7 @@ def getWordVecs(words, model):
         if word in word_vectors:
             vecs.append(word_vectors[word])
     return vecs
+
 
 def buildVecs(data, model):
     fileVecs = []
@@ -114,6 +116,7 @@ def buildVecs(data, model):
 
     return fileVecs, label
 
+
 def get_data_wordvec(dataset_name):
     inp = f'./data/{dataset_name}.seg.txt'
     f = codecs.open(inp, mode='r', encoding='utf-8')
@@ -124,6 +127,7 @@ def get_data_wordvec(dataset_name):
         data.append(i)
     f.close()
     return data
+
 
 def word2vec_(dataset_name):
     class CorpusGenerator:  # 自定义迭代器排除标签
@@ -163,6 +167,7 @@ def word2vec_(dataset_name):
     output_csv = f'./data/{dataset_name}_word2vec.csv'
     data = pd.concat([df_y, df_x], axis=1)
     data.to_csv(output_csv, index=False)
+
 
 # 均衡
 def classification_balance(dataset_name):
@@ -217,6 +222,7 @@ def classification_balance(dataset_name):
     cv_conf = confusion_matrix(y_test, y_pred)
     display_cm(cv_conf, labels, display_metrics=True)
     print(f"测试集准确率: {clf.score(X_test_processed, y_test):.2f}")
+
 
 # 速度优先
 def classification_speed(dataset_name):
@@ -277,6 +283,7 @@ def classification_speed(dataset_name):
     cv_conf = confusion_matrix(y_test, y_pred)
     display_cm(cv_conf, labels, display_metrics=True)
     print(f"测试集准确率: {clf.score(X_test_pca, y_test):.2f}")
+
 
 # 质量优先
 def classification_quality(dataset_name):
@@ -489,6 +496,7 @@ def predict_svm(a, dataset_name, model_type):
     except Exception as e:
         return f"系统错误：{str(e)}"
 
+
 # 爬虫线程类
 class CrawlerThread(threading.Thread):
     def __init__(self, queue, progress_queue, params):
@@ -534,7 +542,58 @@ def read_table_data(file_path):
     except FileNotFoundError:
         return []
 
-def make_window(theme):
+
+def read_accounts():
+    """读取用户账户信息"""
+    accounts = {}
+    try:
+        accounts_path = os.path.join("userDate", "account.csv")
+        with open(accounts_path, 'r', encoding='gbk') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) >= 3:  # 用户名、密码、角色
+                    username, password, role = row[0].strip(), row[1].strip(), row[2].strip()
+                    accounts[username] = (password, role)
+    except FileNotFoundError:
+        sg.popup_error("账户文件不存在！")
+    return accounts
+
+
+def make_login_window():
+    """创建登录窗口"""
+    login_layout = [
+        [sg.Text("用户名", size=(10, 1)), sg.Input(key="-USERNAME-")],
+        [sg.Text("密码", size=(10, 1)), sg.Input(key="-PASSWORD-", password_char="*")],
+        [sg.Button("登录"), sg.Button("退出")]
+    ]
+    return sg.Window("用户登录", login_layout, finalize=True)
+
+
+def login():
+    """处理登录逻辑"""
+    accounts = read_accounts()
+    login_window = make_login_window()
+
+    while True:
+        event, values = login_window.read()
+        if event in (None, "退出"):
+            login_window.close()
+            return None
+        elif event == "登录":
+            username = values["-USERNAME-"].strip()
+            password = values["-PASSWORD-"].strip()
+            if username in accounts:
+                correct_pw, role = accounts[username]
+                if password == correct_pw:
+                    login_window.close()
+                    return role
+                else:
+                    sg.popup_error("密码错误！")
+            else:
+                sg.popup_error("用户名不存在！")
+
+
+def make_window(theme, user_role):
     sg.theme(theme)
     # 菜单栏
     menu_def = [['Help', ['About...', ['https://github.com/buzxa/Emotion.git']]], ]
@@ -597,7 +656,10 @@ def make_window(theme):
             vertical_scroll_only=False,
             enable_click_events=True
         )],
-        [sg.Button('删除选中的结果', font=("Helvetica", 15)), sg.Button('刷新', font=("Helvetica", 15))],
+        # [sg.Button('删除选中的结果', font=("Helvetica", 15)),
+        #  sg.Button('刷新', font=("Helvetica", 15))],
+        [sg.Button('删除选中的结果', key="-DELETE_RESULT-", font=("Helvetica", 15)),
+         sg.Button('刷新', font=("Helvetica", 15))],
         [sg.Sizegrip()]
     ]
 
@@ -614,10 +676,12 @@ def make_window(theme):
                        right_click_menu_tearoff=True, grab_anywhere=True, resizable=True, margins=(0, 0),
                        use_custom_titlebar=True, finalize=True, keep_on_top=True)
     window.set_min_size(window.size)
+    window["-DELETE_RESULT-"].update(disabled=(user_role != "admin"))
     return window
 
-def main_WINDOW(dataset_name):
-    window = make_window(sg.theme())
+
+def main_WINDOW(dataset_name, user_role):
+    window = make_window(sg.theme(), user_role)
 
     crawl_queue = Queue()  # 结果队列
     progress_queue = Queue()  # 进度队列
@@ -747,6 +811,9 @@ def main_WINDOW(dataset_name):
             window['_INPUT_news_'].update('')
 
         elif event == '删除选中的结果':
+            if user_role != "admin":
+                sg.popup_error("权限不足，无法删除！")
+                continue
             csv_path = '../JD/txtDate/table_data.csv'
             try:
                 # 使用更安全的csv读取方式
@@ -776,6 +843,7 @@ def main_WINDOW(dataset_name):
     window.close()
     exit(0)
 
+
 if __name__ == '__main__':
     # 选择数据集
     # dataset_name = input("请输入数据集名称（不带扩展名）：").strip()
@@ -802,7 +870,11 @@ if __name__ == '__main__':
     #     print("质量模型:", predict_svm(text, dataset_name, "quality"))
     #     print("-" * 50)
 
-    # 可视化系统
+    # 登录可视化系统
+    user_role = login()
     sg.theme()
-    main_WINDOW(dataset_name)
+    if not user_role:
+        sg.popup("登录已取消")
+        exit()
+    main_WINDOW(dataset_name, user_role)
 
