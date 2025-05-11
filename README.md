@@ -1,6 +1,4 @@
-MP for multithreading
-
-SVM
+MP [multithreading]
 
 该分支使用cpu多线程训练
 

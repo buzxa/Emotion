@@ -537,7 +537,7 @@ def read_table_data(file_path):
 def make_window(theme):
     sg.theme(theme)
     # 菜单栏
-    menu_def = [['Help', ['About...', ['你好']]], ]
+    menu_def = [['Help', ['About...', ['https://github.com/buzxa/Emotion.git']]], ]
 
     # 数据获取页面
     Date_collection = [
@@ -558,7 +558,6 @@ def make_window(theme):
     ]
 
     # 文本识别界面
-    # 文本识别界面 News_detection 修改后的布局
     News_detection = [
         [sg.Menu(menu_def, tearoff=True)],
         [sg.Text('')],
@@ -608,9 +607,7 @@ def make_window(theme):
     layout += [[sg.TabGroup([[
         sg.Tab(' 数 据 采 集 ', Date_collection),
         sg.Tab(' 文 本 识 别 ', News_detection),
-        # sg.Tab('                                                     ', empty),
         sg.Tab(' 结 果 管 理  ', News_management, element_justification="right",)]], expand_x=True, expand_y=True, font=("Helvetica", 16)),
-
     ]]
     # layout[-1].append(sg.Sizegrip())
     window = sg.Window('情感识别系统', layout, size=(1200, 800),
@@ -673,7 +670,6 @@ def main_WINDOW(dataset_name):
         if event in (None, 'Exit'):
             print("[LOG] Clicked Exit!")
             break
-
 
         elif event == '识别':
             # 映射模型类型
@@ -749,7 +745,6 @@ def main_WINDOW(dataset_name):
             window['_OUTPUT_RESULT_'].update('')
             window['_OUTPUT_CONFIDENCE_'].update('')
             window['_INPUT_news_'].update('')
-
 
         elif event == '删除选中的结果':
             csv_path = '../JD/txtDate/table_data.csv'
